@@ -3,18 +3,9 @@ from sklearn.neighbors import NearestNeighbors
 import copy
 import time
 
-bench_mark_time = {
-    'total': 0,
-    'repair_solution': 0,
-    'crossover': 0,
-    'mutation': 0,
-    'initialize': 0,
-    'local_search': 0,
-}
-
 # 1 Individual contains 1 sub-problem and 1 solution
 class Individual:
-    def __init__(self,lambdas, num_sensors, num_sink_nodes, sensors_positions, sink_node_positions, ideal_point, nadir_point, distances, mu=1, coverage_threshold=0, barrier_length=1000, solution = None) -> None:
+    def __init__(self,lambdas, num_sensors, num_sink_nodes, sensors_positions, sink_node_positions, ideal_point, nadir_point, distances, mu=1, coverage_threshold=0, barrier_length=1000, solution = None, active_indx = None) -> None:
         self.num_sensors = num_sensors
         self.num_sink_nodes = num_sink_nodes
         self.lambdas = lambdas
@@ -25,29 +16,28 @@ class Individual:
         self.barrier_length = barrier_length
         self.coverage_threshold = coverage_threshold
         
-        self.solution = solution
-        if self.solution == None:
-            # Random solution
-            self.solution = []
-            activate = np.random.choice([0,1],num_sensors)
-            srange = np.random.rand(num_sensors)
-            for i in range(num_sensors):
-                if(activate[i]==1):
-                    self.solution.append([activate[i],srange[i]])
-                else:
-                    self.solution.append([activate[i],0])
-            self.repair_solution()
-
         self.active_indx = []   # Index of active sensor
 
-        self.f_norm = [1e9,1e9,1e9]
-        self.f = [1e9,1e9,1e9]
-        if solution != None:
-            self.repair_solution()
-            self.fitness = self.compute_fitness(self.solution, ideal_point, nadir_point)
-            self.neighbor:list[Individual] = []
+        self.f_norm = np.array([1e9,1e9,1e9])
+        self.f = np.array([1e9,1e9,1e9])
+
+        self.neighbor:list[Individual] = []  # To-do: Review
 
         self.distances = distances
+        if solution is None:   
+            # Random solution
+            self.solution = np.zeros((self.num_sensors,2))
+            activate = np.random.choice([0,1],num_sensors)
+            srange = np.random.rand(num_sensors)*barrier_length/num_sensors
+            for i in range(num_sensors):
+                self.solution[i,0] = activate[i]
+                self.solution[i,1] = activate[i]*srange[i]
+            self.repair_solution()
+        else:   # Initialize from an existed instance
+            self.solution = solution
+            self.active_indx = active_indx
+
+        self.fitness = self.compute_fitness(self.solution, ideal_point, nadir_point)
 
     @staticmethod
     def euclid_distance(point1, point2):
@@ -55,7 +45,7 @@ class Individual:
 
 
     def compute_fitness(self, solution, ideal_point, nadir_point):
-        f = [0,0,0]
+        f = np.zeros(3)
 
         for i in range(self.num_sensors):
             if(solution[i][0]==1):
@@ -93,7 +83,7 @@ class Individual:
             self.f[i] = f[i]
             f[i] = (f[i]-ideal_point[i])/(nadir_point[i]-ideal_point[i])
 
-        self.f_norm = f
+        self.f_norm = f.copy()
         gte = max([self.lambdas[i]*abs(f[i]-ideal_point[i]) for i in range(3)])
         self.fitness = 1/gte
         return self.fitness
@@ -189,8 +179,6 @@ class Individual:
                     length-=1
 
         ## Shrink
-        # find_active_indx()
-
         for i in range(1,len(self.active_indx)-1):
             # If sensor i's range intersect with two of its adjacents
             if(
@@ -264,8 +252,9 @@ class Population:
 
     def new_individual(self, individual:Individual)->Individual:
         # Pass by value
-        sol = [copy.deepcopy(row) for row in individual.solution]
-        new = Individual(individual.lambdas, individual.num_sensors, individual.num_sink_nodes, individual.sensors_positions, individual.sink_nodes_positions, self.ideal_point, self.nadir_point, self.distances, self.mu, self.coverage_threshold, self.barrier_length, sol)
+        sol = individual.solution.copy()
+        act_indx = copy.deepcopy(individual.active_indx)
+        new = Individual(individual.lambdas, individual.num_sensors, individual.num_sink_nodes, individual.sensors_positions, individual.sink_nodes_positions, self.ideal_point, self.nadir_point, self.distances, self.mu, self.coverage_threshold, self.barrier_length, sol, act_indx)
 
         return new
 
@@ -292,7 +281,11 @@ class Population:
     
   
     def forward_local_search(self, individual:Individual):
-        sorted_gene_index = [i for i, gene in sorted(enumerate(individual.solution), key=lambda gene: gene[1],reverse=True)]
+        '''
+        # Find the sensor that has the largest range, turn it off and turn on the two of its adjacent
+        '''
+        sorted_gene_index = individual.solution[:,1].argsort()[::-1]
+        
         new_sol = self.new_individual(individual)
         for index in sorted_gene_index:
             if(index!=0 and index!=len(individual.solution)-1 
@@ -307,44 +300,36 @@ class Population:
                 r2 = individual.solution[0][1] - d2
 
                 new_sol.solution[index] = [0,0]
-                new_sol.solution[index-1][0] = 1
-                new_sol.solution[index+1][0] = 1
-
-                new_sol.solution[index-1][1] = r1
-                new_sol.solution[index+1][1] = r2
+                new_sol.solution[index-1] = [1, r1]
+                new_sol.solution[index+1] = [1, r2]
 
                 break
         
-        new_sol.repair_solution()
         new_sol.compute_fitness(new_sol.solution, self.ideal_point, self.nadir_point)
         if(new_sol.fitness>individual.fitness):
-            individual.solution = [copy.deepcopy(row) for row in new_sol.solution]
+            individual.solution = new_sol.solution.copy()
             individual.fitness = new_sol.fitness
-            individual.f_norm = copy.deepcopy(new_sol.f_norm)
-            individual.f = copy.deepcopy(new_sol.f)
-        
+            individual.f_norm = new_sol.f_norm.copy()
+            individual.f = new_sol.f.copy()
+
         return 
 
     def backward_local_search(self, individual:Individual):
-        active_index = []
-        for i in range(len(individual.solution)):
-            if(individual.solution[i][0]==1):
-                active_index.append(i)
-        if(len(active_index)<3):
+        if(len(individual.active_indx)<3):
             return
         d_min = np.inf
         turn_off = [] # Containts index of 2 sensors that will be deactivate
         turn_on = 0 # Containst index of sensor that will be activate
-        for i in range(len(active_index)-1):
+        for i in range(len(individual.active_indx)-1):
             # Get 2 sensors have smallest sum range 
-            if(individual.solution[active_index[i]][1] + individual.solution[active_index[i+1]][1]<d_min):
+            if(individual.solution[individual.active_indx[i]][1] + individual.solution[individual.active_indx[i+1]][1]<d_min):
                 # Check if that 2 sensors have another sleep sensors in between
-                if(active_index[i+1] - active_index[i] > 1):
-                    d_min = individual.solution[active_index[i+1]][1] + individual.solution[active_index[i]][1]
+                if(individual.active_indx[i+1] - individual.active_indx[i] > 1):
+                    d_min = individual.solution[individual.active_indx[i+1]][1] + individual.solution[individual.active_indx[i]][1]
                     turn_off.clear()
-                    turn_off.append(active_index[i])
-                    turn_off.append(active_index[i+1])
-                    turn_on = int((active_index[i]+active_index[i+1])/2)
+                    turn_off.append(individual.active_indx[i])
+                    turn_off.append(individual.active_indx[i+1])
+                    turn_on = int((individual.active_indx[i]+individual.active_indx[i+1])/2)
 
         new_sol = self.new_individual(individual)
         d1 = np.sqrt((individual.sensors_positions[turn_on][0]-individual.sensors_positions[turn_off[0]][0])**2 + (individual.sensors_positions[turn_on][1]-individual.sensors_positions[turn_off[0]][1])**2) 
@@ -362,10 +347,10 @@ class Population:
         new_sol.repair_solution()
         new_sol.compute_fitness(new_sol.solution,self.ideal_point,self.nadir_point)
         if(new_sol.fitness>individual.fitness):
-            individual.solution = [copy.deepcopy(row) for row in new_sol.solution]
+            individual.solution = new_sol.solution.copy()
             individual.fitness = new_sol.fitness
-            individual.f_norm = copy.deepcopy(new_sol.f_norm)
-            individual.f = copy.deepcopy(new_sol.f)
+            individual.f_norm = new_sol.f_norm.copy()
+            individual.f = new_sol.f.copy()
 
         return 
 
@@ -387,30 +372,13 @@ class Population:
         # sort pool by sub-problem's utility, take last element
         return sorted(pool, key=lambda x: x[1])[-1]
     
-    # copy first half of solution from individual, second half from breed to new_individual
-    # def crossover(self, individual:Individual, breed:Individual)->Individual:
-    #     # random 2 point crossover
-    #     cross_point1 = random.randint(0,len(individual.solution)-1)
-    #     cross_point2 = random.randint(cross_point1,len(individual.solution)-1)
-
-    #     new_individual = self.new_individual(individual)
-    #     for i in range(cross_point1,cross_point2):
-    #         new_individual.solution[i] = copy.deepcopy(breed.solution[i])
-            
-    #     new_individual.repair_solution()
-    #     return new_individual
     def crossover(self, parent1:Individual, parent2:Individual)->Individual:
-        start = time.time()
         rand = np.random.uniform(0,1,self.num_sensors)
 
         child = self.new_individual(parent1)
-        for i in range(self.num_sensors):
-            if(rand[i]>=0.5):
-                child.solution[i] = copy.deepcopy(parent2.solution[i])
+        child.solution = np.where(rand[:, np.newaxis] >= 0.5, parent2.solution, child.solution)
 
         child.repair_solution()
-        end = time.time()
-        bench_mark_time['crossover']+= end-start
         return child
 
     def update_utility(self, individuals:list[Individual]):
@@ -427,9 +395,9 @@ class Population:
             new_fitness = new_sol.compute_fitness(individual.solution, self.ideal_point, self.nadir_point)
             if(new_fitness>neighbor.fitness):
                 neighbor.update_utility(new_fitness)
-                neighbor.solution = [copy.deepcopy(row) for row in individual.solution]
-                neighbor.f_norm = copy.deepcopy(individual.f_norm)
-                neighbor.f = copy.deepcopy(individual.f)
+                neighbor.solution = individual.solution.copy()
+                neighbor.f_norm = individual.f_norm.copy()
+                neighbor.f = individual.f.copy()
                 neighbor.fitness = new_fitness
     
     def update_EP(self, individual: Individual):
@@ -496,10 +464,10 @@ class Population:
 
             if(child.fitness > sub_problem.fitness):
                 sub_problem.update_utility(child.fitness)
-                sub_problem.solution = [copy.deepcopy(row) for row in child.solution]
-                sub_problem.f_norm = copy.deepcopy(child.f_norm)
+                sub_problem.solution = child.solution.copy()
+                sub_problem.f_norm = child.f_norm.copy()
+                sub_problem.f = child.f.copy()
                 sub_problem.fitness = child.fitness
-                sub_problem.f = copy.deepcopy(child.f)
 
             self.local_search(sub_problem_index)
             self.update_neighbor_solution(sub_problem)
