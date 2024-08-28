@@ -169,11 +169,12 @@ class Individual:
         
         ## Prune sensors at two ends
         if length>1:
-            if self.distances[self.active_indx[0], self.active_indx[1]] + self.solution[self.active_indx[0]][1] <= self.solution[self.active_indx[1]][1]:
+            if self.solution[self.active_indx[1]][1] >= self.sensors_positions[self.active_indx[1]][0]: # right adjacent of most-left sensor reached the left side of ROI 
                     self.solution[self.active_indx[0]] = [0,0]
                     self.active_indx.pop(0)
                     length-=1
-            elif self.distances[self.active_indx[0], self.active_indx[-2]] + self.solution[self.active_indx[0]][1] <= self.solution[self.active_indx[-2]][1] :
+        if length>1:
+            if self.solution[self.active_indx[-2]][1] + self.sensors_positions[self.active_indx[-2]][0] >= self.barrier_length:
                     self.solution[self.active_indx[-1]] = [0,0]
                     self.active_indx.pop(-1)
                     length-=1
@@ -193,6 +194,13 @@ class Individual:
 
                 self.solution[self.active_indx[i]][1] = max(d1,d2)
 
+        if length>1:
+            if self.distances[self.active_indx[0], self.active_indx[1]] < self.solution[self.active_indx[0]][1] + self.solution[self.active_indx[1]][1]:
+                self.solution[self.active_indx[0]][1] = self.distances[self.active_indx[0], self.active_indx[1]] - self.solution[self.active_indx[1]][1]
+        if length>1:
+            if self.distances[self.active_indx[-1], self.active_indx[-2]] < self.solution[self.active_indx[-1]][1] + self.solution[self.active_indx[-2]][1]:
+                self.solution[self.active_indx[-1]][1] = self.distances[self.active_indx[-1], self.active_indx[-2]] - self.solution[self.active_indx[-2]][1]
+            
         return
     
 
