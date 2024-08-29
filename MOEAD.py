@@ -1,11 +1,10 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import copy
-import time
 
 # 1 Individual contains 1 sub-problem and 1 solution
 class Individual:
-    def __init__(self,lambdas, num_sensors, num_sink_nodes, sensors_positions, sink_node_positions, ideal_point, nadir_point, distances, mu=1, coverage_threshold=0, barrier_length=1000, solution = None, active_indx = None) -> None:
+    def __init__(self,lambdas, num_sensors, num_sink_nodes, sensors_positions, sink_node_positions, distances, mu=1, coverage_threshold=0, barrier_length=1000, solution=None, active_indx=None, fitness=None) -> None:
         self.num_sensors = num_sensors
         self.num_sink_nodes = num_sink_nodes
         self.lambdas = lambdas
@@ -33,11 +32,12 @@ class Individual:
                 self.solution[i,0] = activate[i]
                 self.solution[i,1] = activate[i]*srange[i]
             self.repair_solution()
+            self.fitness = self.compute_fitness(self.solution, None, None)
+
         else:   # Initialize from an existed instance
             self.solution = solution
             self.active_indx = active_indx
-
-        self.fitness = self.compute_fitness(self.solution, ideal_point, nadir_point)
+            self.fitness = fitness
 
     @staticmethod
     def euclid_distance(point1, point2):
@@ -79,17 +79,22 @@ class Individual:
         
         
         # Normalizing
-        for i in range(3):
-            self.f[i] = f[i]
-            f[i] = (f[i]-ideal_point[i])/(nadir_point[i]-ideal_point[i])
+        self.f = f.copy()
+        if ideal_point is None: # Skip normalizing in the first loop
+            self.f_norm = f.copy()
+            gte = max(self.lambdas*self.f_norm)
+        else:
+            f = (f-np.array(ideal_point))/(np.array(nadir_point)-np.array(ideal_point))
+            # f = (f-np.array(ideal_point))
+            self.f_norm = f.copy()
+            # gte = max(self.lambdas*abs(f-ideal_point))
+            gte = max(self.lambdas*self.f_norm)
 
-        self.f_norm = f.copy()
-        gte = max([self.lambdas[i]*abs(f[i]-ideal_point[i]) for i in range(3)])
-        self.fitness = 1/gte
+        self.fitness = -gte
         return self.fitness
     
     def mutation(self):
-        start = time.time()
+        # To-do: Optimize performance
         active_sensor_index = []
         sleep_sensor_index = []
         for i in range(len(self.solution)):
@@ -104,7 +109,6 @@ class Individual:
         temp = self.solution[change_index[0]]
         self.solution[change_index[0]] = self.solution[change_index[1]]
         self.solution[change_index[1]] = temp
-        end = time.time()
         return
                    
     def repair_solution(self):
@@ -196,10 +200,14 @@ class Individual:
 
         if length>1:
             if self.distances[self.active_indx[0], self.active_indx[1]] < self.solution[self.active_indx[0]][1] + self.solution[self.active_indx[1]][1]:
-                self.solution[self.active_indx[0]][1] = self.distances[self.active_indx[0], self.active_indx[1]] - self.solution[self.active_indx[1]][1]
+                self.solution[self.active_indx[0]][1] = max(
+                    self.sensors_positions[self.active_indx[0]][0], # Ensure it reach border of ROI
+                    self.distances[self.active_indx[0], self.active_indx[1]] - self.solution[self.active_indx[1]][1])
         if length>1:
             if self.distances[self.active_indx[-1], self.active_indx[-2]] < self.solution[self.active_indx[-1]][1] + self.solution[self.active_indx[-2]][1]:
-                self.solution[self.active_indx[-1]][1] = self.distances[self.active_indx[-1], self.active_indx[-2]] - self.solution[self.active_indx[-2]][1]
+                self.solution[self.active_indx[-1]][1] = max(
+                    self.barrier_length - self.sensors_positions[self.active_indx[-1]][0],
+                    self.distances[self.active_indx[-1], self.active_indx[-2]] - self.solution[self.active_indx[-2]][1])
             
         return
     
@@ -227,9 +235,11 @@ class Population:
         self.sink_nodes_positions = sink_nodes_positions
         self.lambdas = self.generate_lambdas()
         self.pop:list[Individual] = []
-        self.ideal_point = [0,0,0]
-        self.nadir_point = [self.num_sensors*(1000**1)/10,self.num_sensors,1000]
-        self.EP = []
+        self.ideal_point = [np.inf,np.inf,np.inf]
+        self.nadir_point = [0,0,0]
+        # self.ideal_point = [0,0,0]
+        # self.nadir_point = [1e10,num_sensors,]
+        self.EP:list[Individual] = []
         self.distances = np.zeros(shape=(self.num_sensors, self.num_sensors))   # Distance between two sensors
         self.barrier_length= barrier_length
         self.mu = mu
@@ -244,7 +254,7 @@ class Population:
                 self.distances[i,j] = self.distances[j,i] = d
 
         for i in range(self.pop_size):
-            indi = Individual(self.lambdas[i], num_sensors, self.num_sink_nodes, sensors_positions, sink_nodes_positions, self.ideal_point, self.nadir_point, self.distances, self.mu, self.coverage_threshold, self.barrier_length)
+            indi = Individual(self.lambdas[i], num_sensors, self.num_sink_nodes, sensors_positions, sink_nodes_positions, self.distances, self.mu, self.coverage_threshold, self.barrier_length)
             self.pop.append(indi)
 
         def find_neighbor():
@@ -257,12 +267,13 @@ class Population:
                     self.pop[i].add_neighbor(self.pop[j])
         
         find_neighbor()
+        self.update_ideal_point()
 
     def new_individual(self, individual:Individual)->Individual:
         # Pass by value
         sol = individual.solution.copy()
         act_indx = copy.deepcopy(individual.active_indx)
-        new = Individual(individual.lambdas, individual.num_sensors, individual.num_sink_nodes, individual.sensors_positions, individual.sink_nodes_positions, self.ideal_point, self.nadir_point, self.distances, self.mu, self.coverage_threshold, self.barrier_length, sol, act_indx)
+        new = Individual(individual.lambdas, individual.num_sensors, individual.num_sink_nodes, individual.sensors_positions, individual.sink_nodes_positions, self.distances, self.mu, self.coverage_threshold, self.barrier_length, sol, act_indx, individual.fitness)
 
         return new
 
@@ -275,15 +286,10 @@ class Population:
     
     # Genrate uniformly spread weighted vectors lambda 
     def generate_lambdas(self):
-        # Generate self.pop_size uniformly spaced values for x and y
-        x_values = np.linspace(0.1, 0.9, self.pop_size)
-        y_values = np.linspace(0.1, 0.9, self.pop_size)
-
-        # Calculate z-values such that x + y + z = 1 for uniform spread
-        z_values = 1 - (x_values + y_values) / 2
-
-        # Combine x, y, and z values into 3D vectors
-        weights = np.column_stack((x_values, y_values, z_values))
+        weights = []
+        lambdas = np.random.uniform(0,1,(self.pop_size,3))
+        for i in range(self.pop_size):
+            weights.append([lambdas[i,j]/sum(lambdas[i]) for j in range(3)])
 
         return weights
     
@@ -423,10 +429,10 @@ class Population:
             dominated_by_individual = False
             dominate_individual = False
             for j in range(3):
-                if solution.f[j] > individual.f_norm[j]:
+                if solution.f[j] > individual.f[j]:
                     dominated_by_individual = True
                     break
-                elif solution.f[j] < individual.f_norm[j]:
+                elif solution.f[j] < individual.f[j]:
                     dominate_individual = True
             if not dominated_by_individual:
                 new_EP.append(solution)
@@ -458,6 +464,7 @@ class Population:
 
             # Offspring generation 
             choosen_neighbor = np.random.choice(sub_problem.neighbor)
+            # old_val = copy.deepcopy(sub_problem.solution)
             if random_crossover[i] < self.crossover_rate:
                 child = self.crossover(sub_problem, choosen_neighbor)
             else:
@@ -470,14 +477,15 @@ class Population:
             child.repair_solution()
             child.compute_fitness(child.solution, self.ideal_point, self.nadir_point)
 
-            if(child.fitness > sub_problem.fitness):
+            if(child.fitness >= sub_problem.fitness):
                 sub_problem.update_utility(child.fitness)
                 sub_problem.solution = child.solution.copy()
                 sub_problem.f_norm = child.f_norm.copy()
                 sub_problem.f = child.f.copy()
                 sub_problem.fitness = child.fitness
+                # self.update_EP(sub_problem)
 
-            self.local_search(sub_problem_index)
-            self.update_neighbor_solution(sub_problem)
+            # self.local_search(sub_problem_index)
+            # self.update_neighbor_solution(sub_problem)
         self.update_ideal_point()
         return
