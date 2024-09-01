@@ -30,8 +30,8 @@ if __name__ == "__main__":
 	if(len(sys.argv)>1):
 		epoch = sys.argv[1]
 		dataset_no = sys.argv[2]
-	else:                                                                                                                                                    
-		epoch = 0
+	else:                     
+		epoch = 4
 		# Load positions
 		dataset_no = 0
 	with open(f'Datasets/uniform/{width}x{length}unit/{num_sensors}sensors/sensors_positions_{dataset_no}.pickle','rb') as file:
