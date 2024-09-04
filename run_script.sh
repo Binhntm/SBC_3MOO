@@ -4,7 +4,7 @@
 num_epoch="$1"
 dataset_no="$2"
 
-script_path= "/home/nguyen/Projects/BarrierCoverage/main.py"
+script_path="/home/nguyen/Projects/BarrierCoverage/main.py"
 echo "$script_path"
 # Loop from 1 to the limit
 echo "Run main.py $num_epoch times parallelly with dataset $dataset_no!"

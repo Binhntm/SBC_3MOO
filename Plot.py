@@ -3,10 +3,11 @@ import matplotlib.patches as patches
 import numpy as np
 import MOEAD
 import pickle
-import pyvista as pv
+# import pyvista as pv
 import plotly.express as px
 import pandas as pd
 import pygmo as pg
+import drawsvg as d
 
 def Plot_solution(sensors_positions:list[list[float,float]], solution:list[list[int,float]]):
     '''
@@ -163,56 +164,56 @@ def Open(link):
     except:
         print('Wrong link or file not exist!')
     
-def Scatter_objectives_PV(objectives_by_generations):
-    '''
-    Scatter objectives by generations with PyVista
+# def Scatter_objectives_PV(objectives_by_generations):
+#     '''
+#     Scatter objectives by generations with PyVista
     
-    Return a PyVista.Plotter
-    '''
-    plotter = pv.Plotter()
+#     Return a PyVista.Plotter
+#     '''
+#     plotter = pv.Plotter()
     
-    obj = np.array(objectives_by_generations)
-    max_obj = [np.max(obj[:,:,i]) for i in range(3)]
-    plotter.set_scale(xscale=max_obj[1]/max_obj[0],zscale=max_obj[1]/max_obj[2])
+#     obj = np.array(objectives_by_generations)
+#     max_obj = [np.max(obj[:,:,i]) for i in range(3)]
+#     plotter.set_scale(xscale=max_obj[1]/max_obj[0],zscale=max_obj[1]/max_obj[2])
     
-    # Add Ox, Oy, Oz axes
-    plotter.add_mesh(pv.Line((0,0,0),(max_obj[0]*1.2,0,0)),line_width=5,color='black')
-    plotter.add_mesh(pv.Line((0,0,0),(0,max_obj[1]*1.2,0)),line_width=5,color='black')
-    plotter.add_mesh(pv.Line((0,0,0),(0,0,max_obj[2]*1.2)),line_width=5,color='black')
+#     # Add Ox, Oy, Oz axes
+#     plotter.add_mesh(pv.Line((0,0,0),(max_obj[0]*1.2,0,0)),line_width=5,color='black')
+#     plotter.add_mesh(pv.Line((0,0,0),(0,max_obj[1]*1.2,0)),line_width=5,color='black')
+#     plotter.add_mesh(pv.Line((0,0,0),(0,0,max_obj[2]*1.2)),line_width=5,color='black')
 
-    # Number of generation to plot
-    num_gen_plot = 10
-    num_generations = len(objectives_by_generations)
-    step = num_generations/num_gen_plot
-    # Choose a colormap (replace 'viridis' with your preferred choice)
-    cmap = plt.cm.winter
-    # Create an array of values from 0 to 100 (one for each point)
-    values = np.linspace(0, 1, num_gen_plot)
-    # Generate the list of colors using the colormap
-    color = cmap(values)
+#     # Number of generation to plot
+#     num_gen_plot = 10
+#     num_generations = len(objectives_by_generations)
+#     step = num_generations/num_gen_plot
+#     # Choose a colormap (replace 'viridis' with your preferred choice)
+#     cmap = plt.cm.winter
+#     # Create an array of values from 0 to 100 (one for each point)
+#     values = np.linspace(0, 1, num_gen_plot)
+#     # Generate the list of colors using the colormap
+#     color = cmap(values)
 
-    for i in range(len(objectives_by_generations)):
-        points = pv.PolyData(obj[i])
-        if(i==0):
-            plotter.add_points(
-                    points,
-                    style='points',
-                    color=color[int(i/step)],
-                    point_size=8,
-                    label=f'Gen #{i+1}',
-                    render_points_as_spheres=True)
+#     for i in range(len(objectives_by_generations)):
+#         points = pv.PolyData(obj[i])
+#         if(i==0):
+#             plotter.add_points(
+#                     points,
+#                     style='points',
+#                     color=color[int(i/step)],
+#                     point_size=8,
+#                     label=f'Gen #{i+1}',
+#                     render_points_as_spheres=True)
             
-        elif((i+1)%step==0):
-            plotter.add_points(
-                    points,
-                    style='points',
-                    color=color[int(i/step)],
-                    point_size=8,
-                    label=f'Gen #{i+1}',
-                    render_points_as_spheres=True)
-    plotter.add_legend()
-    plotter.show()
-    return plotter
+#         elif((i+1)%step==0):
+#             plotter.add_points(
+#                     points,
+#                     style='points',
+#                     color=color[int(i/step)],
+#                     point_size=8,
+#                     label=f'Gen #{i+1}',
+#                     render_points_as_spheres=True)
+#     plotter.add_legend()
+#     plotter.show()
+#     return plotter
     
 
 def Scatter_objectives_Plotly(objectives_by_generations):
@@ -357,3 +358,74 @@ def Compare_Distance_to_Reference():
     plt.title('Compare Distance to Reference point')
     plt.legend()
     plt.show()
+
+def drawsensor(sensors_positions:list[list[float,float]], solution:list[list[int,float]], barrier_size=(1000,100), canvas_size=(1000,500), figure_name='test'):
+    canvas = d.Drawing(canvas_size[0], canvas_size[1])
+    canvas.view_box = (0,-canvas_size[1]/2, canvas_size[0], canvas_size[1])
+    canvas.append(d.Rectangle(0,-250,1000,500, fill='white'))
+    num_sensors = len(sensors_positions)
+
+    # Draw fills
+    for i in range(num_sensors):
+        if solution[i][0] == 1:
+            cx, cy = sensors_positions[i]
+            r = solution[i][1]
+            gradient = d.RadialGradient(cx, cy, r)
+            gradient.add_stop(0.5, '#f7931e',1)
+            gradient.add_stop(1, '#f7931e', 0)
+            fill = d.Circle(cx, cy, r, fill=gradient)
+            canvas.append(fill)
+
+    # Draw connection-lines
+    # for i in range(num_sensors-1):
+    #     cx, cy = sensor_pos[i]
+    #     right_cx, right_cy, = sensor_pos[i+1]
+    #     line = d.Line(cx-500, cy, right_cx, right_cy, stroke='green', stroke_linecap='round')
+    #     canvas.append(line)
+
+    # Draw strokes and center
+    for i in range(num_sensors):
+        if solution[i][0] == 1:
+            cx, cy = sensors_positions[i]
+            r = solution[i][1]
+            inner = d.Circle(cx, cy, r/2, fill='#00000000', stroke='black')
+            outter = d.Circle(cx, cy, r, fill='#00000000', stroke='black', stroke_dasharray='5 5')
+            center = d.Circle(cx, cy, 1, fill='black')
+            canvas.append(inner)
+            canvas.append(outter)
+            canvas.append(center)
+
+
+    canvas.set_render_size(w=1920)
+    canvas.save_svg(f'{figure_name}.svg')
+
+def vidsualize_sensors():
+    canvas = d.Drawing(100,100, origin='center')
+    canvas.append(d.Rectangle(-50,-50,100,100, fill='white'))
+
+    cx,cy,r_inner, r_outter = 0,0,10, 30
+
+    gradient = d.RadialGradient(cx, cy, r_outter)
+    gradient.add_stop(r_inner/r_outter, '#e5c925',1)
+    gradient.add_stop(1, '#e5c925', 0)
+    fill = d.Circle(cx, cy, r_outter, fill=gradient)
+    canvas.append(fill)
+    inner = d.Circle(cx, cy, r_inner, fill='#00000000', stroke='black', stroke_width=0.4)
+    outter = d.Circle(cx, cy, r_outter, fill='#00000000', stroke='black', stroke_width=0.4, stroke_dasharray='5 5')
+    canvas.append(inner)
+    canvas.append(outter)
+
+    arrow_maker = d.Marker(orient='auto', maxx=4, maxy=4, minx=0, miny=0)
+    arrow_maker.append(d.Path(stroke='black').M(0,0).V(4).L(2,2).Z())
+
+    inner_r_line = d.Path(fill='black', stroke_cap='round', stroke_width='0.4', marker_end=arrow_maker).M(cx, cy).L(cx+r_inner-0.2, cy)
+    canvas.append(inner_r_line)
+
+    outter_r_line = d.Path(stroke='black', stroke_cap='round', stroke_width='0.4').M(cx, cy).L(cx-r_outter*0.999*np.cos(np.pi/3)-0.2, cy- r_outter*np.sin(np.pi/3)+0.2)
+    canvas.append(outter_r_line)
+
+    center = d.Circle(cx, cy, 1, fill='red')
+    canvas.append(center)
+
+    canvas.set_render_size(w=1920)
+    canvas.save_svg('visualize_sensor.svg')
