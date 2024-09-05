@@ -6,47 +6,74 @@ import time
 
 # 1 Individual contains 1 sub-problem and 1 solution
 class Individual:
-    def __init__(self, num_sensors, num_sink_nodes, sensors_positions, sink_node_positions, distances, solution = None) -> None:
+    def __init__(self, num_sensors, num_sink_nodes, sensors_positions, sink_node_positions, distances, barrier_length=1000, solution = None, active_indx=None, f=None) -> None:
         self.num_sensors = num_sensors
         self.num_sink_nodes = num_sink_nodes
         self.sensors_positions = sensors_positions
         self.sink_nodes_positions = sink_node_positions
         self.distances = distances
+        self.barrier_length = barrier_length
+
+        self.active_indx = []   # Index of active sensor
         
         self.solution = solution
         if self.solution == None:
             # Random solution
-            self.solution = []
+            self.solution = np.zeros((self.num_sensors,2))
             activate = np.random.choice([0,1],num_sensors)
-            srange = np.random.rand(num_sensors)
+            srange = np.random.rand(num_sensors)*barrier_length/num_sensors
             for i in range(num_sensors):
-                if(activate[i]==1):
-                    self.solution.append([activate[i],srange[i]])
-                else:
-                    self.solution.append([activate[i],0])
+                self.solution[i,0] = activate[i]
+                self.solution[i,1] = activate[i]*srange[i]
             self.repair_solution()
+            self.compute_objectives(self.solution)
 
-        self.f = self.compute_objectives(self.solution)
-        self.distances = distances
+        else:   # Initialize from an existed instance
+            self.solution = solution
+            self.active_indx = active_indx
+            self.f = f
+
+
+    @staticmethod
+    def euclid_distance(point1, point2):
+        return np.sqrt((point1[0]-point2[0])**2 + (point1[1]-point2[1])**2)
+
 
     def compute_objectives(self, solution):
-        f = [0,0,0] 
+        f = np.zeros(3)
+
         for i in range(self.num_sensors):
             if(solution[i][0]==1):
-                f[0] += solution[i][1]**2
+                # self.active_indx is always computed before in the self.repair_solution function
+                # self.active_indx.append(i)
                 f[1] += 1
 
                 nearest_sink_node_distance = 1e9
                 for j in range(self.num_sink_nodes):
-                    distance = np.sqrt((self.sensors_positions[i][0]-self.sink_nodes_positions[j][0])**2 + (self.sensors_positions[i][1]-self.sink_nodes_positions[j][1])**2)
+                    distance = self.euclid_distance(self.sensors_positions[i], self.sink_nodes_positions[j])
                     nearest_sink_node_distance = min(nearest_sink_node_distance, distance)
             
                 f[2] += nearest_sink_node_distance
               
         f[2]/=f[1]
+        
+        # d_{0,1} and d{k,k+1}
+        dfirst = self.sensors_positions[self.active_indx[0]][0]*0.5
+        dlast = (1000 - self.sensors_positions[self.active_indx[-1]][0])*0.5
+        if len(self.active_indx)==1:
+            f[0] = dfirst**2 + dlast**2 + self.solution[self.active_indx[0]][1]**2
+        else:
+            for i in range(len(self.active_indx)):
+                indx, left_adj_indx, right_adj_indx = i, i-1, i+1
+                if i==0:
+                    f[0] += dfirst**2*0.5 + self.solution[indx][1]**2 + self.euclid_distance(self.sensors_positions[indx], self.sensors_positions[right_adj_indx])**2*0.5
+                elif i==len(self.active_indx)-1:
+                    f[0] += dlast**2*0.5 + self.solution[indx][1]**2 + self.euclid_distance(self.sensors_positions[indx], self.sensors_positions[left_adj_indx])**2*0.5
+                else:
+                    f[0] += self.solution[indx][1]**2 + 0.5*(self.euclid_distance(self.sensors_positions[indx], self.sensors_positions[left_adj_indx])**2 + self.euclid_distance(self.sensors_positions[indx], self.sensors_positions[right_adj_indx])**2)
 
-        self.f = f
-        return self.f
+        self.f = f.copy()
+
     
     def dominate(self, competition_obj:list):
         '''
@@ -78,77 +105,108 @@ class Individual:
         return
                    
     def repair_solution(self):
-        barier_length = 1000
-
         # Get index of active sensors
-        active_indx = []
+        self.active_indx = []
         # Distance between active adjacent sensors 
-        distance = self.distances
-        for i in range(len(self.sensors_positions)):            
-            if(self.solution[i][0]==1):
-                active_indx.append(i)
+        def find_active_indx():
+            self.active_indx = []
+            for i in range(len(self.sensors_positions)):            
+                if(self.solution[i][0]==1):
+                    self.active_indx.append(i)
 
+        find_active_indx()
         # Coverage requirement
-        if(len(active_indx)<2):
-            self.solution[active_indx[0]][1] = max(
-                np.sqrt((self.sensors_positions[active_indx[0]][0]-0)**2 + (self.sensors_positions[active_indx[0]][1]-0)**2),
-                np.sqrt((self.sensors_positions[active_indx[0]][0]-barier_length)**2 + (self.sensors_positions[active_indx[0]][1]-0)**2))
+        if len(self.active_indx)==0:
+            random_active = np.random.randint(0,self.num_sensors)
+            self.solution[random_active][0] = 1
+            self.active_indx.append(random_active)
+
+        if len(self.active_indx)==1:
+            self.solution[self.active_indx[0]][1] = max(
+                self.sensors_positions[self.active_indx[0]][0],   # x (is tangent one edge of ROI)
+                self.barrier_length - self.sensors_positions[self.active_indx[0]][0]  # barrier_length - x
+            )
             return
-        
-        self.solution[active_indx[0]][1] = max(
-            np.sqrt((self.sensors_positions[active_indx[0]][0]-0)**2 + (self.sensors_positions[active_indx[0]][1]-0)**2),
-            distance[active_indx[0], active_indx[1]]/2
+
+        # Coverage in two ends of ROI
+        self.solution[self.active_indx[0]][1] = max(
+            self.sensors_positions[self.active_indx[0]][0], # x (is tangent one edge of ROI)
+            self.distances[self.active_indx[0], self.active_indx[1]]/2
         )
-        self.solution[active_indx[-1]][1] = max(
-            np.sqrt((self.sensors_positions[active_indx[-1]][0]-barier_length)**2 + (self.sensors_positions[active_indx[-1]][1]-0)**2),
-            distance[active_indx[-1], active_indx[-2]]/2
+        self.solution[self.active_indx[-1]][1] = max(
+            self.barrier_length - self.sensors_positions[self.active_indx[-1]][0], # barrier_length - x (is tangent one edge of ROI)
+            self.distances[self.active_indx[-1], self.active_indx[-2]]/2
         )
 
-        for i in range(1,len(active_indx)-1):
-            self.solution[active_indx[i]][1] = max(
-                distance[active_indx[i], active_indx[i-1]]/2,
-                distance[active_indx[i+1], active_indx[i]]/2
+        for i in range(1,len(self.active_indx)-1):
+            self.solution[self.active_indx[i]][1] = max(
+                self.distances[self.active_indx[i], self.active_indx[i-1]]/2,
+                self.distances[self.active_indx[i+1], self.active_indx[i]]/2
             )
 
         # Shrink
-        length = len(active_indx)
+        ## Prune sensors in between
+        length = len(self.active_indx)
         i = 1
-        while(i<length-1):
-            if(distance[active_indx[i],active_indx[i-1]] + self.solution[active_indx[i]][1] <= self.solution[active_indx[i-1]][1]
-               or
-               distance[active_indx[i],active_indx[i+1]] + self.solution[active_indx[i]][1] <= self.solution[active_indx[i+1]][1]
-               or 
-               distance[active_indx[i-1],active_indx[i+1]] <= self.solution[active_indx[i-1]][1] + self.solution[active_indx[i+1]][1]):
-                self.solution[active_indx[i]] = [0,0]
-                active_indx.pop(i)
+        while(i<length-1):  # O(n)
+            if(
+                self.distances[self.active_indx[i],self.active_indx[i-1]] + self.solution[self.active_indx[i]][1] <= self.solution[self.active_indx[i-1]][1]   # sensor {active_index[i]} covered by left adjacent
+                or
+                self.distances[self.active_indx[i],self.active_indx[i+1]] + self.solution[self.active_indx[i]][1] <= self.solution[self.active_indx[i+1]][1]   # sensor {active_index[i]} covered by right adjacent
+                or 
+                self.distances[self.active_indx[i-1],self.active_indx[i+1]] <= self.solution[self.active_indx[i-1]][1] + self.solution[self.active_indx[i+1]][1]   # two of its adjacent intersect
+            ):
+                self.solution[self.active_indx[i]] = [0,0]
+                self.active_indx.pop(i)
                 length-=1
                 if(i>1):
                     i-=1
                 continue
             i+=1
         
-        active_indx = []
-        for i in range(len(self.sensors_positions)):            
-            if(self.solution[i][0]==1):
-                active_indx.append(i)
+        ## Prune sensors at two ends
+        if length>1:
+            if self.solution[self.active_indx[1]][1] >= self.sensors_positions[self.active_indx[1]][0]: # right adjacent of most-left sensor reached the left side of ROI 
+                    self.solution[self.active_indx[0]] = [0,0]
+                    self.active_indx.pop(0)
+                    length-=1
+        if length>1:
+            if self.solution[self.active_indx[-2]][1] + self.sensors_positions[self.active_indx[-2]][0] >= self.barrier_length:
+                    self.solution[self.active_indx[-1]] = [0,0]
+                    self.active_indx.pop(-1)
+                    length-=1
 
-        for i in range(1,len(active_indx)-1):
+        ## Shrink
+        for i in range(1,len(self.active_indx)-1):
             # If sensor i's range intersect with two of its adjacents
-            if(distance[active_indx[i],active_indx[i-1]] < self.solution[active_indx[i]][1]+self.solution[active_indx[i-1]][1]
-               and
-               distance[active_indx[i],active_indx[i+1]] < self.solution[active_indx[i]][1]+self.solution[active_indx[i+1]][1]):
-
+            if(
+                self.distances[self.active_indx[i], self.active_indx[i-1]] < self.solution[self.active_indx[i]][1] + self.solution[self.active_indx[i-1]][1]
+                and
+                self.distances[self.active_indx[i], self.active_indx[i+1]] < self.solution[self.active_indx[i]][1] + self.solution[self.active_indx[i+1]][1]
+            ):
                 # The distance between sensor i and i-1's range: d1 = distance(sensor_i, sensor_i-1) - R(sensor_i-1)
-                d1 = distance[active_indx[i],active_indx[i-1]] - self.solution[active_indx[i-1]][1]
+                d1 = self.distances[self.active_indx[i],self.active_indx[i-1]] - self.solution[self.active_indx[i-1]][1]
                 # The distance between sensor i and i+1's range: d2 = distance(sensor_i, sensor_i+1) - R(sensor_i+1)
-                d2 = distance[active_indx[i],active_indx[i+1]] - self.solution[active_indx[i+1]][1]
+                d2 = self.distances[self.active_indx[i],self.active_indx[i+1]] - self.solution[self.active_indx[i+1]][1]
 
-                self.solution[active_indx[i]][1] = max(d1,d2)
+                self.solution[self.active_indx[i]][1] = max(d1,d2)
 
+        if length>1:
+            if self.distances[self.active_indx[0], self.active_indx[1]] < self.solution[self.active_indx[0]][1] + self.solution[self.active_indx[1]][1]:
+                self.solution[self.active_indx[0]][1] = max(
+                    self.sensors_positions[self.active_indx[0]][0], # Ensure it reach border of ROI
+                    self.distances[self.active_indx[0], self.active_indx[1]] - self.solution[self.active_indx[1]][1])
+        if length>1:
+            if self.distances[self.active_indx[-1], self.active_indx[-2]] < self.solution[self.active_indx[-1]][1] + self.solution[self.active_indx[-2]][1]:
+                self.solution[self.active_indx[-1]][1] = max(
+                    self.barrier_length - self.sensors_positions[self.active_indx[-1]][0],
+                    self.distances[self.active_indx[-1], self.active_indx[-2]] - self.solution[self.active_indx[-2]][1])
+            
         return
 
+
 class Population:
-    def __init__(self, pop_size, num_sensors, sensors_positions,num_sink_nodes, sink_nodes_positions) -> None:
+    def __init__(self, pop_size, num_sensors, sensors_positions,num_sink_nodes, sink_nodes_positions, barrier_length=1000, mu=1, coverage_threshold=0, crossoverate=0.9, mutation_rate=0.4) -> None:
         self.pop_size = pop_size
         self.num_sensors = num_sensors
         self.sensors_positions = sensors_positions
@@ -157,23 +215,27 @@ class Population:
         self.pop:list[Individual] = []
         self.EP = []
         self.distances = np.zeros(shape=(self.num_sensors, self.num_sensors))
+        self.coverage_threshold = coverage_threshold
+        self.barrier_length = barrier_length
+        self.crossoverate = crossoverate
+        self.mutation_rate = mutation_rate
 
         for i in range(num_sensors):
             for j in range(num_sensors):
-                d =  np.sqrt(
-                    (self.sensors_positions[i][0]-self.sensors_positions[j][0])**2 + 
-                    (self.sensors_positions[i][1]-self.sensors_positions[j][1])**2)
+                d =  Individual.euclid_distance(self.sensors_positions[i], self.sensors_positions[j])
 
                 self.distances[i,j] = self.distances[j,i] = d
 
         for i in range(self.pop_size):
             indi = Individual(num_sensors, self.num_sink_nodes, sensors_positions, sink_nodes_positions, self.distances)
+            indi = Individual(num_sensors, num_sink_nodes, sensors_positions, sink_nodes_positions, self.distances, barrier_length)
             self.pop.append(indi)
 
     def new_individual(self, individual:Individual)->Individual:
         # Pass by value
-        sol = [copy.deepcopy(row) for row in individual.solution]
-        new = Individual(individual.num_sensors, individual.num_sink_nodes, individual.sensors_positions, individual.sink_nodes_positions, self.distances,sol)
+        sol = individual.solution.copy()
+        act_indx = copy.deepcopy(individual.active_indx)
+        new = Individual(self.num_sensors, self.num_sink_nodes, self.sensors_positions, self.sink_nodes_positions, self.distances, self.barrier_length, sol, act_indx)
 
         return new
 
@@ -191,7 +253,8 @@ class Population:
         for index in sorted_gene_index:
             if(index!=0 and index!=len(individual.solution)-1 
                and individual.solution[index][0]==1
-               and individual.solution[index-1][0]==0 and individual.solution[index+1][0]==0):
+               and individual.solution[index-1][0]==0
+               and individual.solution[index+1][0]==0):
 
                 d1 = np.sqrt((individual.sensors_positions[index][0]-individual.sensors_positions[index-1][0])**2 + (individual.sensors_positions[index][1]-individual.sensors_positions[index-1][1])**2) 
 
@@ -292,18 +355,9 @@ class Population:
         rand = np.random.uniform(0,1,self.num_sensors)
 
         child1 , child2 = self.new_individual(parent1), self.new_individual(parent2)
-        all_off = [True,True]
-        for i in range(self.num_sensors):
-            if(rand[i]>=0.5):
-                child1.solution[i] = copy.deepcopy(parent2.solution[i])
-                child2.solution[i] = copy.deepcopy(parent1.solution[i])
-            if(child1.solution[i][0]==1):
-                all_off[0] = False
-            if(child2.solution[i][0]==1):
-                all_off[1] = False
+        child1.solution = np.where(rand[:, np.newaxis] >= 0.5, parent2.solution, child1.solution)
+        child2.solution = np.where(rand[:, np.newaxis] >= 0.5, parent1.solution, child2.solution)
 
-        if(any(all_off)):
-            child1, child2 = self.uniform_crossover(parent1,parent2)
         child1.compute_objectives(child1.solution)
         child2.compute_objectives(child2.solution)
 
@@ -414,8 +468,10 @@ class Population:
         for rank in pareto_front:
             if(count+len(rank)<self.pop_size):
                 for indi_index in rank:
-                    new_pop[count].solution = [copy.deepcopy(row) for row in pool[indi_index].solution]
-                    new_pop[count].f = copy.deepcopy(pool[indi_index].f)
+                    # new_pop[count].solution = [copy.deepcopy(row) for row in pool[indi_index].solution]
+                    # new_pop[count].f = copy.deepcopy(pool[indi_index].f)
+                    new_pop[count].solution = pool[indi_index].solution.copy()
+                    new_pop[count].solution = pool[indi_index].f.copy()
 
                     count += 1
             
@@ -446,8 +502,10 @@ class Population:
                 sorted_index = np.flip(np.argsort(distances))
 
                 for i in range(self.pop_size-count):
-                    new_pop[i+count].solution = [copy.deepcopy(row) for row in pool[sorted_index[i]].solution]
-                    new_pop[i+count].f = copy.deepcopy(pool[sorted_index[i]].f)
+                    # new_pop[i+count].solution = [copy.deepcopy(row) for row in pool[sorted_index[i]].solution]
+                    # new_pop[i+count].f = copy.deepcopy(pool[sorted_index[i]].f)
+                    new_pop[i+count].solution = pool[sorted_index[i]].solution.copy()
+                    new_pop[i+count].solution = pool[sorted_index[i]].f.copy()
                 break
 
         self.pop = new_pop

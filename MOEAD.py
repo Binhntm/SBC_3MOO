@@ -4,7 +4,7 @@ import copy
 
 # 1 Individual contains 1 sub-problem and 1 solution
 class Individual:
-    def __init__(self,lambdas, num_sensors, num_sink_nodes, sensors_positions, sink_node_positions, distances, mu=1, coverage_threshold=0, barrier_length=1000, solution=None, active_indx=None, fitness=None) -> None:
+    def __init__(self, lambdas, num_sensors, num_sink_nodes, sensors_positions, sink_node_positions, distances, mu=1, coverage_threshold=0, barrier_length=1000, solution=None, active_indx=None, fitness=None) -> None:
         self.num_sensors = num_sensors
         self.num_sink_nodes = num_sink_nodes
         self.lambdas = lambdas
