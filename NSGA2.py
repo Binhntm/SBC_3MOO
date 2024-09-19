@@ -17,7 +17,7 @@ class Individual:
         self.active_indx = []   # Index of active sensor
         
         self.solution = solution
-        if self.solution == None:
+        if self.solution is None:
             # Random solution
             self.solution = np.zeros((self.num_sensors,2))
             activate = np.random.choice([0,1],num_sensors)
@@ -75,12 +75,12 @@ class Individual:
         self.f = f.copy()
 
     
-    def dominate(self, competition_obj:list):
+    def dominate(self, competition_obj:np.ndarray):
         '''
         Check if this Individual dominates another Individual
         '''
-        smaller_or_equal = np.array(self.f) <= np.array(competition_obj)
-        smaller = np.array(self.f) < np.array(competition_obj)
+        smaller_or_equal = self.f <= competition_obj
+        smaller = self.f < competition_obj
         if np.all(smaller_or_equal) and np.any(smaller):
             return True
 
@@ -99,9 +99,11 @@ class Individual:
         change_index = np.random.choice(active_sensor_index), np.random.choice(sleep_sensor_index)
 
         temp = self.solution[change_index[0]]
+        self.repair_solution()
         self.solution[change_index[0]] = self.solution[change_index[1]]
         self.solution[change_index[1]] = temp
         
+
         return
                    
     def repair_solution(self):
@@ -235,7 +237,8 @@ class Population:
         # Pass by value
         sol = individual.solution.copy()
         act_indx = copy.deepcopy(individual.active_indx)
-        new = Individual(self.num_sensors, self.num_sink_nodes, self.sensors_positions, self.sink_nodes_positions, self.distances, self.barrier_length, sol, act_indx)
+        f = individual.f.copy()
+        new = Individual(self.num_sensors, self.num_sink_nodes, self.sensors_positions, self.sink_nodes_positions, self.distances, self.barrier_length, sol, act_indx, f)
 
         return new
 
@@ -358,8 +361,9 @@ class Population:
         child1.solution = np.where(rand[:, np.newaxis] >= 0.5, parent2.solution, child1.solution)
         child2.solution = np.where(rand[:, np.newaxis] >= 0.5, parent1.solution, child2.solution)
 
-        child1.compute_objectives(child1.solution)
-        child2.compute_objectives(child2.solution)
+        # child1.compute_objectives(child1.solution)
+        # child2.compute_objectives(child2.solution)
+        child1.repair_solution()
 
         return child1, child2
     
@@ -418,17 +422,23 @@ class Population:
     
     def reproduct(self):
         new_children:list[Individual] = []
-        new_children_size = int(self.pop_size/4)
+        new_children_size = self.pop_size//4
 
         # Select sub-problem  
         pool_size = self.pop_size
         rand = np.random.permutation(self.pop_size)[:pool_size]
+        random_crossover = np.random.uniform(0,1, new_children_size)
+        random_mutation = np.random.uniform(0,1, new_children_size)
         for i in range(int(new_children_size)):
             # # Offspring generation 
-            
-            child, _ = self.uniform_crossover(self.pop[rand[i]],self.pop[rand[-i]])
-            child.mutation()
-            child.repair_solution()
+            if random_crossover[i] < self.crossoverate:
+                child, _ = self.uniform_crossover(self.pop[rand[i]],self.pop[rand[-i]])
+            else:
+                continue
+
+            if random_mutation[i] < self.mutation_rate:
+                child.mutation()
+
             child.compute_objectives(child.solution)
             new_children.append(child)
         # Assume the id of individual in pool is followed by self.pop append new_children 
@@ -471,7 +481,7 @@ class Population:
                     # new_pop[count].solution = [copy.deepcopy(row) for row in pool[indi_index].solution]
                     # new_pop[count].f = copy.deepcopy(pool[indi_index].f)
                     new_pop[count].solution = pool[indi_index].solution.copy()
-                    new_pop[count].solution = pool[indi_index].f.copy()
+                    new_pop[count].f = pool[indi_index].f.copy()
 
                     count += 1
             
@@ -505,7 +515,7 @@ class Population:
                     # new_pop[i+count].solution = [copy.deepcopy(row) for row in pool[sorted_index[i]].solution]
                     # new_pop[i+count].f = copy.deepcopy(pool[sorted_index[i]].f)
                     new_pop[i+count].solution = pool[sorted_index[i]].solution.copy()
-                    new_pop[i+count].solution = pool[sorted_index[i]].f.copy()
+                    new_pop[i+count].f = pool[sorted_index[i]].f.copy()
                 break
 
         self.pop = new_pop
