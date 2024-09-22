@@ -26,7 +26,7 @@ def run_MOEAD():
 
     objectives_by_generations = []
     first_solutions = [indi.solution for indi in population.pop]
-    with open(f'MOEAD_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/first_solutions_{epoch}.pickle', 'wb') as file:
+    with open(f'MOEAD_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/first_solutions_{epoch}.pickle', 'wb') as file:
         pickle.dump(first_solutions, file)
 
     for i in tqdm(range(num_generations)):
@@ -42,13 +42,13 @@ def run_MOEAD():
     last_solutions = [indi.solution for indi in population.pop]
 
     # Change file name everytime!
-    with open(f'MOEAD_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/last_solutions_{epoch}.pickle', 'wb') as file:
+    with open(f'MOEAD_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/last_solutions_{epoch}.pickle', 'wb') as file:
         pickle.dump(last_solutions, file)
-    with open(f'MOEAD_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/objectives_by_generations_{epoch}.pickle', 'wb') as file:
+    with open(f'MOEAD_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/objectives_by_generations_{epoch}.pickle', 'wb') as file:
         pickle.dump(objectives_by_generations, file)
-    with open(f'MOEAD_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/lambdas_{epoch}.pickle', 'wb') as file:
+    with open(f'MOEAD_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/lambdas_{epoch}.pickle', 'wb') as file:
         pickle.dump(population.lambdas, file)
-    with open(f'MOEAD_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/ep_{epoch}.pickle', 'wb') as file:
+    with open(f'MOEAD_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/ep_{epoch}.pickle', 'wb') as file:
         pickle.dump([indi.solution for indi in population.EP], file)
 
     print('Finished!')
@@ -68,7 +68,7 @@ def run_NSGA2():
 
     objectives_by_generations = []
     first_solutions = [indi.solution for indi in population.pop]
-    with open(f'NSGA2_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/first_solutions_{epoch}.pickle', 'wb') as file:
+    with open(f'NSGA2_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/first_solutions_{epoch}.pickle', 'wb') as file:
         pickle.dump(first_solutions, file)
 
     for i in tqdm(range(num_generations)):
@@ -84,11 +84,11 @@ def run_NSGA2():
     last_solutions = [indi.solution for indi in population.pop]
 
     # Change file name everytime!
-    with open(f'NSGA2_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/last_solutions_{epoch}.pickle', 'wb') as file:
+    with open(f'NSGA2_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/last_solutions_{epoch}.pickle', 'wb') as file:
         pickle.dump(last_solutions, file)
-    with open(f'NSGA2_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/objectives_by_generations_{epoch}.pickle', 'wb') as file:
+    with open(f'NSGA2_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/objectives_by_generations_{epoch}.pickle', 'wb') as file:
         pickle.dump(objectives_by_generations, file)
-    with open(f'NSGA2_Results/uniform/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/ep_{epoch}.pickle', 'wb') as file:
+    with open(f'NSGA2_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/ep_{epoch}.pickle', 'wb') as file:
         pickle.dump([indi.solution for indi in population.EP], file)
 
     print('Finished!')
