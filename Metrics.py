@@ -108,7 +108,7 @@ def spacing_indicator(output_objecvies):
 
 def delta_indicator():
     '''
-    # The delta index does not generalize to more than 2 objectives, as it uses lexicographic order in the biobjective objective space to compute the di
+    # The delta index does not generalize to more than 2 objectives, as it uses lexicographic order in the biobjective objective space to compute
 
     '''
     return

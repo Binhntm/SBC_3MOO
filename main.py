@@ -126,5 +126,7 @@ if __name__ == "__main__":
     # graphviz = GraphvizOutput()
     # graphviz.output_file = 'basic.png'
     # with PyCallGraph(output=graphviz):
-        # run_NSGA2()
-    run_MOEAD()
+    #     run_NSGA2()
+    run_NSGA2()
+
+    # run_MOEAD()

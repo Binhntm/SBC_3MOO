@@ -79,9 +79,21 @@ class Individual:
         '''
         Check if this Individual dominates another Individual
         '''
-        smaller_or_equal = self.f <= competition_obj
-        smaller = self.f < competition_obj
-        if np.all(smaller_or_equal) and np.any(smaller):
+        # smaller_or_equal = self.f <= competition_obj
+        # smaller = self.f < competition_obj
+        # if np.all(smaller_or_equal) and np.any(smaller):
+        #     return True
+        
+        if( 
+            self.f[0] <= competition_obj[0] and 
+            self.f[1] <= competition_obj[1] and
+            self.f[2] <= competition_obj[2] and
+            (
+                self.f[0] < competition_obj[0] or 
+                self.f[1] < competition_obj[1] or
+                self.f[2] < competition_obj[2]
+            )
+        ):
             return True
 
         return False
@@ -99,10 +111,10 @@ class Individual:
         change_index = np.random.choice(active_sensor_index), np.random.choice(sleep_sensor_index)
 
         temp = self.solution[change_index[0]]
-        self.repair_solution()
         self.solution[change_index[0]] = self.solution[change_index[1]]
         self.solution[change_index[1]] = temp
         
+        self.repair_solution()
 
         return
                    
@@ -446,7 +458,7 @@ class Population:
         
         # Ranking
             # domination_sets[i] is a list, containts the ids of which individual i dominates
-        domination_sets = [[] for i in range(len(pool))]
+        domination_sets = [[]]*len(pool)
             # domination_counts[i] a number, containts the numbers of individual dominate i
         domination_counts = np.zeros(len(pool))
         for i in range(len(pool)):
