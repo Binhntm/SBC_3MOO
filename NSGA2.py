@@ -64,12 +64,16 @@ class Individual:
             f[0] = dfirst**2 + dlast**2 + self.solution[self.active_indx[0]][1]**2
         else:
             for i in range(len(self.active_indx)):
-                indx, left_adj_indx, right_adj_indx = i, i-1, i+1
+                indx = self.active_indx[i]
                 if i==0:
+                    right_adj_indx = self.active_indx[i+1]
                     f[0] += dfirst**2*0.5 + self.solution[indx][1]**2 + self.euclid_distance(self.sensors_positions[indx], self.sensors_positions[right_adj_indx])**2*0.5
                 elif i==len(self.active_indx)-1:
+                    left_adj_indx = self.active_indx[i-1]
                     f[0] += dlast**2*0.5 + self.solution[indx][1]**2 + self.euclid_distance(self.sensors_positions[indx], self.sensors_positions[left_adj_indx])**2*0.5
                 else:
+                    right_adj_indx = self.active_indx[i+1]
+                    left_adj_indx = self.active_indx[i-1]
                     f[0] += self.solution[indx][1]**2 + 0.5*(self.euclid_distance(self.sensors_positions[indx], self.sensors_positions[left_adj_indx])**2 + self.euclid_distance(self.sensors_positions[indx], self.sensors_positions[right_adj_indx])**2)
 
         self.f = f.copy()
@@ -85,13 +89,16 @@ class Individual:
         #     return True
         
         if( 
-            self.f[0] <= competition_obj[0] and 
-            self.f[1] <= competition_obj[1] and
-            self.f[2] <= competition_obj[2] and
             (
                 self.f[0] < competition_obj[0] or 
                 self.f[1] < competition_obj[1] or
                 self.f[2] < competition_obj[2]
+            )
+            and
+            (
+                self.f[0] <= competition_obj[0] and
+                self.f[1] <= competition_obj[1] and
+                self.f[2] <= competition_obj[2] 
             )
         ):
             return True

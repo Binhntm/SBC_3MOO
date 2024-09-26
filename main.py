@@ -29,6 +29,7 @@ def run_MOEAD():
     with open(f'MOEAD_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/first_solutions_{epoch}.pickle', 'wb') as file:
         pickle.dump(first_solutions, file)
 
+    print('Running algorithm...')
     for i in tqdm(range(num_generations)):
         population.reproduct()
         f = []
@@ -41,7 +42,8 @@ def run_MOEAD():
 
     last_solutions = [indi.solution for indi in population.pop]
 
-    # Change file name everytime!
+    # Save results
+    print('Saving results...')
     with open(f'MOEAD_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/last_solutions_{epoch}.pickle', 'wb') as file:
         pickle.dump(last_solutions, file)
     with open(f'MOEAD_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/objectives_by_generations_{epoch}.pickle', 'wb') as file:
@@ -71,6 +73,7 @@ def run_NSGA2():
     with open(f'NSGA2_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/first_solutions_{epoch}.pickle', 'wb') as file:
         pickle.dump(first_solutions, file)
 
+    print('Running algorithm...')
     for i in tqdm(range(num_generations)):
         population.reproduct()
         f = []
@@ -83,7 +86,8 @@ def run_NSGA2():
 
     last_solutions = [indi.solution for indi in population.pop]
 
-    # Change file name everytime!
+    # Save results
+    print('Saving results...')
     with open(f'NSGA2_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/last_solutions_{epoch}.pickle', 'wb') as file:
         pickle.dump(last_solutions, file)
     with open(f'NSGA2_Results/{distr}/{width}x{length}unit/{num_sensors}sensors/dataset_{dataset_no}/objectives_by_generations_{epoch}.pickle', 'wb') as file:
@@ -94,6 +98,7 @@ def run_NSGA2():
     print('Finished!')
 
 if __name__ == "__main__":
+    print('Loading configurations...')
     with open('config.yaml', 'r') as file:
         config = yaml.safe_load(file)
     pop_size = config['POP_SIZE']
@@ -106,6 +111,7 @@ if __name__ == "__main__":
     distr = config['DISTRIBUTION']
     cr = config['OPERATORS']['CROSSOVER RATE']
     mr = config['OPERATORS']['MUTATION RATE']
+    print('Completed loading configurations!')
 
     # parser = argparse.ArgumentParser()
     # Take in argument as epoch number for saving result file when run via bash script, default is 0
@@ -116,17 +122,18 @@ if __name__ == "__main__":
         epoch = 0
         dataset_no = 0
 
+    print('Loading sensors and sink nodes positions...')
     # Load positions
     with open(f'Datasets/{distr}/{width}x{length}unit/{num_sensors}sensors/sensors_positions_{dataset_no}.pickle', 'rb') as file:
         sensors_positions = pickle.load(file)
     with open('Datasets/sink_nodes_positions.pickle', 'rb') as file:
         sink_nodes_positions = pickle.load(file)
-
+    print('Completed loading positions!')
     # Run
     # graphviz = GraphvizOutput()
     # graphviz.output_file = 'basic.png'
     # with PyCallGraph(output=graphviz):
     #     run_NSGA2()
-    run_NSGA2()
+    # run_NSGA2()
 
-    # run_MOEAD()
+    run_NSGA2()

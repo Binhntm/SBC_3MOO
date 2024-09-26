@@ -12,3 +12,4 @@ for (( i=0; i<$num_epoch; i++ )); do
   python3 "$script_path" $i $dataset_no &
 done
 
+echo "All python scripts have finished running."
