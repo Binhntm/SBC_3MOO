@@ -4,13 +4,14 @@ import pickle
 import pygmo as pg
 from sklearn.preprocessing import MinMaxScaler
 
-def open(link):
+def Open(link):
     try:
         with open(link,'rb') as file:
             obj = np.array(pickle.load(file))
 
             return obj
-    except:
+    except Exception as e:
+        print(e)
         print('Wrong link or file not exist!')
 
 def find_pareto_front(pool):
@@ -107,7 +108,7 @@ def spacing_indicator(output_objecvies):
 
 def delta_indicator():
     '''
-    # The delta index does not generalize to more than 2 objectives, as it uses lexicographic order in the biobjective objective space to compute the di
+    # The delta index does not generalize to more than 2 objectives, as it uses lexicographic order in the biobjective objective space to compute
 
     '''
     return
@@ -167,3 +168,9 @@ def epsilon_additive_indicator(output_objectives, reference_pareto_front):
 
     return max_val
 
+if __name__ == "__main__":
+    last_sol_obj = Open('/home/nguyen/Projects/BarrierCoverage/MOEAD_Results/uniform/50x1000unit/300sensors/dataset_0/objectives_by_generations_0.pickle')[-1]
+    rf = find_pareto_front(last_sol_obj)
+
+    print(spacing_indicator(last_sol_obj))
+    print(generational_distance(last_sol_obj[-1],rf))
