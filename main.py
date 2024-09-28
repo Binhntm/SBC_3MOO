@@ -135,5 +135,4 @@ if __name__ == "__main__":
     # with PyCallGraph(output=graphviz):
     #     run_NSGA2()
     # run_NSGA2()
-
-    run_NSGA2()
+    run_MOEAD()
